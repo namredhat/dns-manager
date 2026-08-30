@@ -76,6 +76,41 @@ function Ensure-Folder {
     if (-not (Test-Path $script:AppDataDir)) { New-Item -ItemType Directory $script:AppDataDir -Force | Out-Null }
 }
 
+function Ensure-ElevatedTaskAndShortcut {
+    try {
+        $taskName = 'DNSManagerPro_Elevated'
+        $scriptPath = $PSCommandPath
+        $targetArg = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+        
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $targetArg
+        $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+        [void](Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue)
+        
+        # Create Desktop Shortcut
+        $desktop = [Environment]::GetFolderPath('Desktop')
+        $shortcutPath = Join-Path $desktop 'DNS Manager Pro.lnk'
+        $vbsPath = Join-Path $PSScriptRoot 'Chay-Doi-DNS.vbs'
+        
+        $wshShell = New-Object -ComObject WScript.Shell
+        $shortcut = $wshShell.CreateShortcut($shortcutPath)
+        if (Test-Path $vbsPath) {
+            $shortcut.TargetPath = "wscript.exe"
+            $shortcut.Arguments = "`"$vbsPath`""
+        } else {
+            $shortcut.TargetPath = "schtasks.exe"
+            $shortcut.Arguments = "/run /tn `"$taskName`""
+        }
+        $shortcut.WorkingDirectory = $PSScriptRoot
+        $shortcut.IconLocation = "shell32.dll,13"
+        $shortcut.Description = "DNS Manager Pro (Khong can hoi UAC)"
+        $shortcut.Save()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 function Write-Log {
     param([string]$Msg, [string]$Level = 'INFO')
     $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'HH:mm:ss'), $Level, $Msg
@@ -751,6 +786,7 @@ function Restore-DNSBackup {
 
 try {
     Ensure-Folder
+    Ensure-ElevatedTaskAndShortcut | Out-Null
     $mainForm = Build-UI
     Reload-AdapterList
     Populate-Presets
