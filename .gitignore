@@ -1,0 +1,5 @@
+﻿# Tu dong tao boi AutoGitPush v5.0
+.vs/
+.idea/
+*.log
+.env.local
