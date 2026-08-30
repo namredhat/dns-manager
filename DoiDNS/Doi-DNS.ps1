@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
-    DNS Manager Pro - Gaming Dark Purple Edition
-    UI & Core Developer: TQN
+    DNS Manager Pro
+    Developed by TQN
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -15,6 +15,7 @@ Add-Type -AssemblyName System.Drawing
 $win32Sig = @'
 [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
 [DllImport("user32.dll")]   public static extern bool  ShowWindow(IntPtr hWnd, int nCmdShow);
+[DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
 '@
 try {
     $type = Add-Type -MemberDefinition $win32Sig -Name 'Win32Con' -Namespace 'DnsMgr' -PassThru
@@ -35,7 +36,7 @@ if (-not (Test-IsAdmin)) {
     exit
 }
 
-# --- Theme Configuration (Dark Purple - Gaming) ---
+# --- Theme Configuration ---
 $script:Theme = @{
     BG       = [System.Drawing.ColorTranslator]::FromHtml('#0D0B14')
     Panel    = [System.Drawing.ColorTranslator]::FromHtml('#16121F')
@@ -45,9 +46,9 @@ $script:Theme = @{
     Text     = [System.Drawing.ColorTranslator]::FromHtml('#F5F3FF')
     Subtext  = [System.Drawing.ColorTranslator]::FromHtml('#A1A1AA')
     Border   = [System.Drawing.ColorTranslator]::FromHtml('#2A2335')
-    Success  = [System.Drawing.ColorTranslator]::FromHtml('#22C55E')
-    Danger   = [System.Drawing.ColorTranslator]::FromHtml('#EF4444')
-    Warn     = [System.Drawing.ColorTranslator]::FromHtml('#F59E0B')
+    Success  = [System.Drawing.ColorTranslator]::FromHtml('#3FB950')
+    Danger   = [System.Drawing.ColorTranslator]::FromHtml('#F85149')
+    Warn     = [System.Drawing.ColorTranslator]::FromHtml('#D29922')
 }
 
 # --- Data & Paths ---
@@ -58,14 +59,14 @@ $script:Adapters        = @()
 $script:SelectedAdapter = $null
 
 $script:Presets = @(
-    @{ Name = 'Automatic (DHCP)';           Note = 'Reset default network / Modem';           Mode = 'Automatic'; IPv4 = @();                                   IPv6 = @() },
-    @{ Name = 'Google DNS';                 Note = 'Fast, low latency, optimal for Gaming';   Mode = 'Manual';    IPv4 = @('8.8.8.8', '8.8.4.4');               IPv6 = @('2001:4860:4860::8888', '2001:4860:4860::8844') },
-    @{ Name = 'Cloudflare';                 Note = 'Lowest ping, high privacy & speed';       Mode = 'Manual';    IPv4 = @('1.1.1.1', '1.0.0.1');               IPv6 = @('2606:4700:4700::1111', '2606:4700:4700::1001') },
-    @{ Name = 'Cloudflare Security';        Note = 'Blocks malicious sites & dangerous web'; Mode = 'Manual';    IPv4 = @('1.1.1.2', '1.0.0.2');               IPv6 = @('2606:4700:4700::1112', '2606:4700:4700::1002') },
-    @{ Name = 'Quad9 Security';             Note = 'High security protection, blocks malware';Mode = 'Manual';    IPv4 = @('9.9.9.9', '149.112.112.112');        IPv6 = @('2620:fe::fe', '2620:fe::9') },
-    @{ Name = 'OpenDNS Home';               Note = 'Stable web routing & general filtering'; Mode = 'Manual';    IPv4 = @('208.67.222.222', '208.67.220.220'); IPv6 = @('2620:119:35::35', '2620:119:53::53') },
-    @{ Name = 'AdGuard DNS';                Note = 'Blocks ads, popups & tracking servers';   Mode = 'Manual';    IPv4 = @('94.140.14.14', '94.140.15.15');      IPv6 = @('2a10:50c0::ad1:ff', '2a10:50c0::ad2:ff') },
-    @{ Name = 'Control D';                  Note = 'Bypass ISP throttle, fast routing';       Mode = 'Manual';    IPv4 = @('76.76.2.0', '76.76.10.0');           IPv6 = @('2606:1a40::', '2606:1a40:1::') }
+    @{ Name = 'Automatic (DHCP)';           Note = 'Restore default DNS from router / ISP';   Mode = 'Automatic'; IPv4 = @();                                   IPv6 = @() },
+    @{ Name = 'Google DNS';                 Note = 'Fast global anycast network';             Mode = 'Manual';    IPv4 = @('8.8.8.8', '8.8.4.4');               IPv6 = @('2001:4860:4860::8888', '2001:4860:4860::8844') },
+    @{ Name = 'Cloudflare';                 Note = 'Lowest ping, strong privacy focus';       Mode = 'Manual';    IPv4 = @('1.1.1.1', '1.0.0.1');               IPv6 = @('2606:4700:4700::1111', '2606:4700:4700::1001') },
+    @{ Name = 'Cloudflare Security';        Note = 'Blocks malware and phishing domains';     Mode = 'Manual';    IPv4 = @('1.1.1.2', '1.0.0.2');               IPv6 = @('2606:4700:4700::1112', '2606:4700:4700::1002') },
+    @{ Name = 'Quad9 Security';             Note = 'High-security resolver, blocks malware';  Mode = 'Manual';    IPv4 = @('9.9.9.9', '149.112.112.112');        IPv6 = @('2620:fe::fe', '2620:fe::9') },
+    @{ Name = 'OpenDNS Home';               Note = 'Stable resolver with basic filtering';    Mode = 'Manual';    IPv4 = @('208.67.222.222', '208.67.220.220'); IPv6 = @('2620:119:35::35', '2620:119:53::53') },
+    @{ Name = 'AdGuard DNS';                Note = 'Blocks ads, popups and trackers';         Mode = 'Manual';    IPv4 = @('94.140.14.14', '94.140.15.15');      IPv6 = @('2a10:50c0::ad1:ff', '2a10:50c0::ad2:ff') },
+    @{ Name = 'Control D';                  Note = 'Configurable resolver, fast routing';     Mode = 'Manual';    IPv4 = @('76.76.2.0', '76.76.10.0');           IPv6 = @('2606:1a40::', '2606:1a40:1::') }
 )
 
 # --- Helper Functions ---
@@ -92,15 +93,75 @@ function Write-Log {
     }
 }
 
-function Get-PingMs {
-    param([string]$IP)
-    $ping = New-Object System.Net.NetworkInformation.Ping
+function ConvertTo-DnsQueryName {
+    param([string]$Domain)
+    $bytes = New-Object System.Collections.Generic.List[byte]
+    foreach ($label in $Domain.TrimEnd('.').Split('.')) {
+        $labelBytes = [System.Text.Encoding]::ASCII.GetBytes($label)
+        if ($labelBytes.Length -gt 63) { throw 'DNS label is too long.' }
+        $bytes.Add([byte]$labelBytes.Length)
+        $bytes.AddRange([byte[]]$labelBytes)
+    }
+    $bytes.Add(0)
+    return $bytes.ToArray()
+}
+
+function New-DnsQueryPacket {
+    param([string]$Domain, [UInt16]$TransactionId)
+
+    $packet = New-Object System.Collections.Generic.List[byte]
+    $packet.Add([byte](($TransactionId -shr 8) -band 0xFF))
+    $packet.Add([byte]($TransactionId -band 0xFF))
+    $packet.AddRange([byte[]](0x01, 0x00)) # Standard recursive query
+    $packet.AddRange([byte[]](0x00, 0x01)) # One question
+    $packet.AddRange([byte[]](0x00, 0x00)) # Answer RRs
+    $packet.AddRange([byte[]](0x00, 0x00)) # Authority RRs
+    $packet.AddRange([byte[]](0x00, 0x00)) # Additional RRs
+    $packet.AddRange([byte[]](ConvertTo-DnsQueryName -Domain $Domain))
+    $packet.AddRange([byte[]](0x00, 0x01)) # Type A
+    $packet.AddRange([byte[]](0x00, 0x01)) # Class IN
+    return $packet.ToArray()
+}
+
+function Get-DnsQueryMs {
+    param(
+        [string]$Server,
+        [string]$Domain = 'www.cloudflare.com',
+        [int]$TimeoutMs = 1200
+    )
+
+    $udp = New-Object System.Net.Sockets.UdpClient
     try {
-        $reply = $ping.Send($IP, 600)
-        if ($reply.Status -eq 'Success') { return [int]$reply.RoundtripTime }
+        $udp.Client.ReceiveTimeout = $TimeoutMs
+        $udp.Client.SendTimeout = $TimeoutMs
+        $udp.Connect($Server, 53)
+
+        $transactionId = [UInt16](Get-Random -Minimum 1 -Maximum 65535)
+        $query = New-DnsQueryPacket -Domain $Domain -TransactionId $transactionId
+        $remote = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+        [void]$udp.Send($query, $query.Length)
+        $response = $udp.Receive([ref]$remote)
+        $sw.Stop()
+
+        if ($response.Length -lt 12) { return -1 }
+        $responseId = ([int]$response[0] -shl 8) -bor [int]$response[1]
+        if ($responseId -ne $transactionId) { return -1 }
+
+        $rcode = $response[3] -band 0x0F
+        if ($rcode -ne 0) { return -1 }
+
+        $answerCount = ([int]$response[6] -shl 8) -bor [int]$response[7]
+        if ($answerCount -lt 1) { return -1 }
+
+        return [int][Math]::Max(1, [Math]::Round($sw.Elapsed.TotalMilliseconds))
+    } catch {
         return -1
-    } catch { return -1 }
-    finally { $ping.Dispose() }
+    } finally {
+        $udp.Close()
+        $udp.Dispose()
+    }
 }
 
 function Test-ValidIP {
@@ -158,9 +219,47 @@ function Backup-CurrentDNS {
     Set-Content $script:BackupFile -Value $json -Encoding UTF8
 }
 
-# --- Custom UI Controls (Fixed Color Scope Bug) ---
+# --- UI Helpers ---
+function Set-RoundRegion {
+    param($Control, [int]$Radius = 4)
+    try {
+        $w = $Control.Width
+        $h = $Control.Height
+        if ($w -lt 4 -or $h -lt 4) { return }
+        $r = [Math]::Max(2, [Math]::Min($Radius, [Math]::Floor([Math]::Min($w, $h) / 2)))
+        $d = $r * 2
+        $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $path.AddArc(0, 0, $d, $d, 180, 90)
+        $path.AddArc($w - $d, 0, $d, $d, 270, 90)
+        $path.AddArc($w - $d, $h - $d, $d, $d, 0, 90)
+        $path.AddArc(0, $h - $d, $d, $d, 90, 90)
+        $path.CloseFigure()
+        $Control.Region = New-Object System.Drawing.Region($path)
+    } catch {}
+}
+
+function New-SectionPanel {
+    param([int]$X, [int]$Y, [int]$W, [int]$H)
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Location = New-Object System.Drawing.Point($X, $Y)
+    $p.Size = New-Object System.Drawing.Size($W, $H)
+    $p.BackColor = $script:Theme.Panel
+    $p.Add_Paint({
+        param($s, $e)
+        $pen = New-Object System.Drawing.Pen($script:Theme.Border, 1)
+        $e.Graphics.DrawRectangle($pen, 0, 0, $s.Width - 1, $s.Height - 1)
+        $pen.Dispose()
+    })
+    return $p
+}
+
 function New-CustomButton {
-    param([string]$Text, [int]$X, [int]$Y, [int]$W, [int]$H, [System.Drawing.Color]$BgColor, [ScriptBlock]$OnClick)
+    param(
+        [string]$Text, [int]$X, [int]$Y, [int]$W, [int]$H,
+        [System.Drawing.Color]$BgColor,
+        [ScriptBlock]$OnClick,
+        [switch]$Emphasis
+    )
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $Text
     $btn.Location = New-Object System.Drawing.Point($X, $Y)
@@ -169,21 +268,31 @@ function New-CustomButton {
     $btn.FlatAppearance.BorderSize = 0
     $btn.BackColor = $BgColor
     $btn.ForeColor = $script:Theme.Text
-    $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+    $weight = if ($Emphasis) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9, $weight)
     $btn.Cursor = [System.Windows.Forms.Cursors]::Hand
-    $btn.Tag = $BgColor
+    $btn.UseVisualStyleBackColor = $false
 
-    $btn.Add_MouseEnter({ $this.BackColor = $script:Theme.Hover })
-    $btn.Add_MouseLeave({ $this.BackColor = [System.Drawing.Color]$this.Tag })
+    $hoverColor = [System.Drawing.Color]::FromArgb(255,
+        [Math]::Min(255, $BgColor.R + 18),
+        [Math]::Min(255, $BgColor.G + 18),
+        [Math]::Min(255, $BgColor.B + 18))
+    if ($Emphasis) { $hoverColor = $script:Theme.Hover }
+    $btn.Tag = @{ Normal = $BgColor; Hover = $hoverColor }
+
+    $btn.Add_MouseEnter({ $this.BackColor = $this.Tag.Hover })
+    $btn.Add_MouseLeave({ $this.BackColor = $this.Tag.Normal })
+
     if ($OnClick) { $btn.Add_Click($OnClick) }
+    Set-RoundRegion -Control $btn -Radius 4
     return $btn
 }
 
 # --- GUI Construction ---
 function Build-UI {
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = 'DNS Manager Pro - TQN'
-    $form.ClientSize = New-Object System.Drawing.Size(860, 680)
+    $form.Text = 'DNS Manager Pro'
+    $form.ClientSize = New-Object System.Drawing.Size(860, 668)
     $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
     $form.MaximizeBox = $false
@@ -192,52 +301,39 @@ function Build-UI {
 
     # --- Header ---
     $pHeader = New-Object System.Windows.Forms.Panel
-    $pHeader.Size = New-Object System.Drawing.Size(860, 65)
+    $pHeader.Size = New-Object System.Drawing.Size(860, 60)
     $pHeader.Location = New-Object System.Drawing.Point(0, 0)
     $pHeader.BackColor = $script:Theme.Panel
+    $pHeader.Add_Paint({
+        param($s, $e)
+        $pen = New-Object System.Drawing.Pen($script:Theme.Border, 1)
+        $e.Graphics.DrawLine($pen, 0, $s.Height - 1, $s.Width, $s.Height - 1)
+        $pen.Dispose()
+    })
     $form.Controls.Add($pHeader)
 
     $lblTitle = New-Object System.Windows.Forms.Label
-    $lblTitle.Text = 'DNS MANAGER PRO'
-    $lblTitle.Font = New-Object System.Drawing.Font('Segoe UI', 15, [System.Drawing.FontStyle]::Bold)
+    $lblTitle.Text = 'DNS Manager Pro'
+    $lblTitle.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
     $lblTitle.ForeColor = $script:Theme.Text
     $lblTitle.Location = New-Object System.Drawing.Point(20, 10)
     $lblTitle.AutoSize = $true
     $pHeader.Controls.Add($lblTitle)
 
     $lblSub = New-Object System.Windows.Forms.Label
-    $lblSub.Text = 'High Performance DNS Optimizer & Gaming Tool'
+    $lblSub.Text = 'DNS Configuration & Optimization Utility'
     $lblSub.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
     $lblSub.ForeColor = $script:Theme.Subtext
-    $lblSub.Location = New-Object System.Drawing.Point(22, 38)
+    $lblSub.Location = New-Object System.Drawing.Point(22, 36)
     $lblSub.AutoSize = $true
     $pHeader.Controls.Add($lblSub)
 
-    # Credit Badge TQN
-    $lblCredit = New-Object System.Windows.Forms.Label
-    $lblCredit.Text = 'DEVELOPED BY TQN'
-    $lblCredit.Font = New-Object System.Drawing.Font('Segoe UI', 8.5, [System.Drawing.FontStyle]::Bold)
-    $lblCredit.ForeColor = $script:Theme.Accent
-    $lblCredit.Location = New-Object System.Drawing.Point(700, 22)
-    $lblCredit.AutoSize = $true
-    $pHeader.Controls.Add($lblCredit)
-
-    # Line Separator
-    $pLine = New-Object System.Windows.Forms.Panel
-    $pLine.Size = New-Object System.Drawing.Size(860, 2)
-    $pLine.Location = New-Object System.Drawing.Point(0, 65)
-    $pLine.BackColor = $script:Theme.Accent
-    $form.Controls.Add($pLine)
-
     # --- Section 1: Adapter Selector ---
-    $pAdapter = New-Object System.Windows.Forms.Panel
-    $pAdapter.Size = New-Object System.Drawing.Size(820, 75)
-    $pAdapter.Location = New-Object System.Drawing.Point(20, 80)
-    $pAdapter.BackColor = $script:Theme.Panel
+    $pAdapter = New-SectionPanel -X 20 -Y 72 -W 820 -H 75
     $form.Controls.Add($pAdapter)
 
     $lblCard = New-Object System.Windows.Forms.Label
-    $lblCard.Text = 'Select Network Adapter:'
+    $lblCard.Text = 'Network Adapter'
     $lblCard.ForeColor = $script:Theme.Subtext
     $lblCard.Location = New-Object System.Drawing.Point(15, 12)
     $lblCard.AutoSize = $true
@@ -256,7 +352,7 @@ function Build-UI {
     $pAdapter.Controls.Add($btnRefresh)
 
     $btnFlush = New-CustomButton -Text 'Flush Cache' -X 685 -Y 33 -W 120 -H 27 -BgColor $script:Theme.Panel2 -OnClick {
-        try { Clear-DnsClientCache; Write-Log 'DNS Cache cleared successfully.' 'SUCCESS' } catch { Write-Log 'Failed to flush cache.' 'ERROR' }
+        try { Clear-DnsClientCache; Write-Log 'DNS cache cleared successfully.' 'SUCCESS' } catch { Write-Log 'Failed to flush cache.' 'ERROR' }
     }
     $pAdapter.Controls.Add($btnFlush)
 
@@ -268,10 +364,7 @@ function Build-UI {
     $pAdapter.Controls.Add($script:LblCurrentDNS)
 
     # --- Section 2: Preset List ---
-    $pGrid = New-Object System.Windows.Forms.Panel
-    $pGrid.Size = New-Object System.Drawing.Size(820, 240)
-    $pGrid.Location = New-Object System.Drawing.Point(20, 168)
-    $pGrid.BackColor = $script:Theme.Panel
+    $pGrid = New-SectionPanel -X 20 -Y 159 -W 820 -H 240
     $form.Controls.Add($pGrid)
 
     $script:LV = New-Object System.Windows.Forms.ListView
@@ -288,28 +381,26 @@ function Build-UI {
     [void]$script:LV.Columns.Add('Provider', 160)
     [void]$script:LV.Columns.Add('Primary DNS', 120)
     [void]$script:LV.Columns.Add('Secondary DNS', 120)
-    [void]$script:LV.Columns.Add('Description / Note', 290)
-    [void]$script:LV.Columns.Add('Ping', 80)
+    [void]$script:LV.Columns.Add('Description', 290)
+    [void]$script:LV.Columns.Add('DNS Query', 80)
     $pGrid.Controls.Add($script:LV)
+    try { [void][DnsMgr.Win32Con]::SetWindowTheme($script:LV.Handle, 'Explorer', $null) } catch {}
 
     # Action Buttons
-    $btnApply = New-CustomButton -Text 'Apply Selected' -X 15 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Accent -OnClick { Apply-SelectedPreset }
+    $btnApply = New-CustomButton -Text 'Apply Selected' -X 15 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Accent -OnClick { Apply-SelectedPreset } -Emphasis
     $pGrid.Controls.Add($btnApply)
 
-    $btnPing = New-CustomButton -Text 'Test Speed (Ping)' -X 205 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Panel2 -OnClick { Test-DNSSpeed }
+    $btnPing = New-CustomButton -Text 'Test DNS Query' -X 205 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Panel2 -OnClick { Test-DNSSpeed }
     $pGrid.Controls.Add($btnPing)
 
-    $btnFastest = New-CustomButton -Text 'Auto Best Ping' -X 395 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Panel2 -OnClick { Select-FastestDNS }
+    $btnFastest = New-CustomButton -Text 'Auto Best DNS' -X 395 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Panel2 -OnClick { Select-FastestDNS }
     $pGrid.Controls.Add($btnFastest)
 
-    $btnBackup = New-CustomButton -Text 'Backup / Restore' -X 625 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Border -OnClick { Restore-DNSBackup }
+    $btnBackup = New-CustomButton -Text 'Restore Backup' -X 625 -Y 204 -W 180 -H 28 -BgColor $script:Theme.Panel2 -OnClick { Restore-DNSBackup }
     $pGrid.Controls.Add($btnBackup)
 
     # --- Section 3: Custom DNS Input ---
-    $pCustom = New-Object System.Windows.Forms.Panel
-    $pCustom.Size = New-Object System.Drawing.Size(820, 70)
-    $pCustom.Location = New-Object System.Drawing.Point(20, 420)
-    $pCustom.BackColor = $script:Theme.Panel
+    $pCustom = New-SectionPanel -X 20 -Y 411 -W 820 -H 70
     $form.Controls.Add($pCustom)
 
     $lblP4 = New-Object System.Windows.Forms.Label
@@ -342,18 +433,15 @@ function Build-UI {
     $script:TxtIPv4B.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
     $pCustom.Controls.Add($script:TxtIPv4B)
 
-    $btnApplyCustom = New-CustomButton -Text 'Apply Custom' -X 625 -Y 18 -W 180 -H 27 -BgColor $script:Theme.Accent -OnClick { Apply-CustomDNS }
+    $btnApplyCustom = New-CustomButton -Text 'Apply Custom' -X 625 -Y 18 -W 180 -H 27 -BgColor $script:Theme.Accent -OnClick { Apply-CustomDNS } -Emphasis
     $pCustom.Controls.Add($btnApplyCustom)
 
     # --- Section 4: Log Output ---
-    $pLog = New-Object System.Windows.Forms.Panel
-    $pLog.Size = New-Object System.Drawing.Size(820, 150)
-    $pLog.Location = New-Object System.Drawing.Point(20, 500)
-    $pLog.BackColor = $script:Theme.Panel
+    $pLog = New-SectionPanel -X 20 -Y 493 -W 820 -H 118
     $form.Controls.Add($pLog)
 
     $script:TxtLog = New-Object System.Windows.Forms.RichTextBox
-    $script:TxtLog.Size = New-Object System.Drawing.Size(790, 125)
+    $script:TxtLog.Size = New-Object System.Drawing.Size(790, 93)
     $script:TxtLog.Location = New-Object System.Drawing.Point(15, 12)
     $script:TxtLog.BackColor = $script:Theme.Panel2
     $script:TxtLog.ForeColor = $script:Theme.Text
@@ -361,6 +449,35 @@ function Build-UI {
     $script:TxtLog.ReadOnly = $true
     $script:TxtLog.Font = New-Object System.Drawing.Font('Consolas', 8.5)
     $pLog.Controls.Add($script:TxtLog)
+
+    # --- Footer / Status Bar ---
+    $pFooter = New-Object System.Windows.Forms.Panel
+    $pFooter.Size = New-Object System.Drawing.Size(860, 28)
+    $pFooter.Location = New-Object System.Drawing.Point(0, 640)
+    $pFooter.BackColor = $script:Theme.Panel
+    $pFooter.Add_Paint({
+        param($s, $e)
+        $pen = New-Object System.Drawing.Pen($script:Theme.Border, 1)
+        $e.Graphics.DrawLine($pen, 0, 0, $s.Width, 0)
+        $pen.Dispose()
+    })
+    $form.Controls.Add($pFooter)
+
+    $lblFooterLeft = New-Object System.Windows.Forms.Label
+    $lblFooterLeft.Text = 'DNS Manager Pro'
+    $lblFooterLeft.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+    $lblFooterLeft.ForeColor = $script:Theme.Subtext
+    $lblFooterLeft.Location = New-Object System.Drawing.Point(20, 7)
+    $lblFooterLeft.AutoSize = $true
+    $pFooter.Controls.Add($lblFooterLeft)
+
+    $lblFooterRight = New-Object System.Windows.Forms.Label
+    $lblFooterRight.Text = 'Credit: TQN'
+    $lblFooterRight.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+    $lblFooterRight.ForeColor = $script:Theme.Subtext
+    $lblFooterRight.AutoSize = $true
+    $lblFooterRight.Location = New-Object System.Drawing.Point(770, 7)
+    $pFooter.Controls.Add($lblFooterRight)
 
     # --- Events Binding ---
     $script:CboAdapter.Add_SelectedIndexChanged({
@@ -432,7 +549,7 @@ function Apply-CustomDNS {
     if (-not $script:SelectedAdapter) { return }
     $ip1 = $script:TxtIPv4A.Text.Trim()
     $ip2 = $script:TxtIPv4B.Text.Trim()
-    
+
     if (-not (Test-ValidIP -IP $ip1)) {
         Write-Log 'Invalid Primary IPv4 address.' 'WARN'
         return
@@ -446,7 +563,7 @@ function Apply-CustomDNS {
         Backup-CurrentDNS -ifIndex $script:SelectedAdapter.InterfaceIndex -Alias $script:SelectedAdapter.Name
         Set-DNSConfig -ifIndex $script:SelectedAdapter.InterfaceIndex -Preset $preset
         Update-DNSDisplay
-        Write-Log ("Applied Custom DNS ({0}) to {1}" -f ($v4 -join ', '), $script:SelectedAdapter.Name) 'SUCCESS'
+        Write-Log ("Applied custom DNS ({0}) to {1}" -f ($v4 -join ', '), $script:SelectedAdapter.Name) 'SUCCESS'
     } catch {
         Write-Log ("Error setting custom DNS: {0}" -f $_.Exception.Message) 'ERROR'
     } finally {
@@ -455,7 +572,8 @@ function Apply-CustomDNS {
 }
 
 function Test-DNSSpeed {
-    Write-Log 'Benchmarking DNS server ping...' 'INFO'
+    $queryDomain = 'www.cloudflare.com'
+    Write-Log ("Benchmarking real DNS queries for {0}..." -f $queryDomain) 'INFO'
     [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
     try {
         foreach ($item in $script:LV.Items) {
@@ -465,7 +583,7 @@ function Test-DNSSpeed {
                 continue
             }
             $target = $preset.IPv4[0]
-            $ms = Get-PingMs -IP $target
+            $ms = Get-DnsQueryMs -Server $target -Domain $queryDomain
             if ($ms -ge 0) {
                 $item.SubItems[4].Text = "$ms ms"
             } else {
@@ -473,7 +591,7 @@ function Test-DNSSpeed {
             }
             [System.Windows.Forms.Application]::DoEvents()
         }
-        Write-Log 'Ping speed benchmark completed.' 'SUCCESS'
+        Write-Log 'DNS query benchmark completed.' 'SUCCESS'
     } finally {
         [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::Default
     }
@@ -482,12 +600,12 @@ function Test-DNSSpeed {
 function Select-FastestDNS {
     Test-DNSSpeed
     $bestItem = $null
-    $minPing = [int]::MaxValue
+    $minQueryMs = [int]::MaxValue
     foreach ($item in $script:LV.Items) {
         if ($item.SubItems[4].Text -match '^(\d+) ms$') {
-            $ping = [int]$Matches[1]
-            if ($ping -lt $minPing) {
-                $minPing = $ping
+            $queryMs = [int]$Matches[1]
+            if ($queryMs -lt $minQueryMs) {
+                $minQueryMs = $queryMs
                 $bestItem = $item
             }
         }
@@ -496,7 +614,7 @@ function Select-FastestDNS {
         $script:LV.SelectedItems.Clear()
         $bestItem.Selected = $true
         Apply-SelectedPreset
-        Write-Log ("Auto-selected lowest ping server: {0} ({1} ms)" -f $bestItem.Tag.Name, $minPing) 'SUCCESS'
+        Write-Log ("Auto-selected fastest DNS query server: {0} ({1} ms)" -f $bestItem.Tag.Name, $minQueryMs) 'SUCCESS'
     } else {
         Write-Log 'Could not find optimal DNS server.' 'WARN'
     }
